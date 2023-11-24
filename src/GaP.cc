@@ -6,6 +6,7 @@
 #include "ParticleGenerator.hh"
 #include "kr83.hh"
 #include "PositionGenerator.hh"
+#include "NewPhysics.hh"
 
 #include <CLHEP/Units/PhysicalConstants.h>
 #include <FTFP_BERT.hh>
@@ -380,6 +381,7 @@ const std::string filename_event_2 = "nan.txt";
     physics_list -> RegisterPhysics(new G4OpticalPhysics{});
     physics_list -> RegisterPhysics(new G4RadioactiveDecayPhysics);
     physics_list -> RegisterPhysics(new G4DecayPhysics());
+    physics_list -> RegisterPhysics(new ExtraPhysics{});
 
 	auto generic_messenger = new G4GenericMessenger(nullptr,"/beam/", "Particle beam generator");
 	field_cage_parameters fcp = version2_parameters();
