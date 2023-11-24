@@ -202,10 +202,10 @@ G4MaterialPropertiesTable* TPB_properties() {
   auto WLS_abs_energy = n4::const_over(c4::hc/nm, {optPhotMaxWL_, 380, 370, 360, 330, 320, 310, 300, 270, 250, 230, 210, 190, 170, 150, optPhotMinWL_});
   auto WLS_absLength  = n4::scale_by   (       nm, {infinite, infinite,  50,  30,  30,  50,  80, 100, 100, 400, 400, 350, 250, 350, 400, 400          });
 
-  //for (int i=0; i<WLS_abs_energy.size(); i++)
-  //  G4cout << "* TPB WLS absLength:  " << std::setw(8) << WLS_abs_energy[i] / eV
-  //         << " eV  ==  "              << std::setw(8) << (c4::hc / WLS_abs_energy[i]) / nm
-  //         << " nm  ->  "              << std::setw(6) << WLS_absLength[i] / nm << " nm" << G4endl;
+  for (int i=0; i<WLS_abs_energy.size(); i++)
+    G4cout << "* TPB WLS absLength:  " << std::setw(8) << WLS_abs_energy[i] / eV
+           << " eV  ==  "              << std::setw(8) << (c4::hc / WLS_abs_energy[i]) / nm
+           << " nm  ->  "              << std::setw(6) << WLS_absLength[i] / nm << " nm" << G4endl;
 
   // WLS EMISSION SPECTRUM
   // Implemented with formula (7), with parameter values in table (3)
@@ -234,22 +234,22 @@ G4MaterialPropertiesTable* TPB_properties() {
   vecd WLS_emiSpectrum(WLS_emi_energy.size());
   std::transform(begin(WLS_emi_energy), end(WLS_emi_energy), begin(WLS_emiSpectrum), tpb_emission_spectrum);
 
-  // G4cout << "* TPB WLSemi:  " << std::setw(4)
-  //        << wl << " nm -> " << WLS_emiSpectrum[i] << G4endl;
+   //~ G4cout << "* TPB WLSemi:  " << std::setw(4)
+          //~ << wl << " nm -> " << WLS_emiSpectrum[i] << G4endl;
 
   return n4::material_properties()
     .add("RINDEX"               , optPhotRangeE_, 1.67)
     // Assuming no absorption except WLS
     //~ .add("ABSLENGTH"            , optPhotRangeE_, noAbsLength_) // Wrong argument replaced (see previous line)
     .add("ABSLENGTH"            , optPhotRangeE_, 1. *m) // Wrong argument replaced (see previous line)
-    //~ .add("WLSABSLENGTH"         , WLS_abs_energy, WLS_absLength)
-    //~ .add("WLSCOMPONENT"         , WLS_emi_energy, WLS_emiSpectrum)
-    //~ .add("WLSTIMECONSTANT"      , 1.2 * ns) // WLS Delay
-    //~ .add("WLSMEANNUMBERPHOTONS" , 0.65) // WLS Quantum Efficiency
+    .add("WLSABSLENGTH"         , WLS_abs_energy, WLS_absLength)
+    .add("WLSCOMPONENT"         , WLS_emi_energy, WLS_emiSpectrum)
+    .add("WLSTIMECONSTANT"      , 1.2 * ns) // WLS Delay
+    .add("WLSMEANNUMBERPHOTONS" , 0.65) // WLS Quantum Efficiency
     // According to the paper, the QE of TPB depends on the incident wavelength.
     // As Geant4 doesn't allow this possibility, it is set to the value corresponding
     // to Xe scintillation spectrum peak.
-    //~ .NEW("WLSCONVEFFICIENCY", 1. ) //Not in the original code
+    .NEW("WLSCONVEFFICIENCY", 1. ) //Not in the original code
     .done();
 }
 ////////////////////////////////////////////////////////////////////////
