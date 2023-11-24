@@ -21,6 +21,7 @@
 //~ #include <G4UnionSolid.hh>
 #include <G4OpticalSurface.hh>
 #include <G4LogicalBorderSurface.hh>
+#include <G4LogicalSkinSurface.hh>
 //~ #include <G4UserLimits.hh>
 //~ #include <G4UserLimits.hh>
 
@@ -254,6 +255,24 @@ void place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4Str
     new G4LogicalBorderSurface(name, one, two, optical_surface);
 }
 
+void place_skin_optical_surface_between(G4LogicalVolume* one, G4String name, G4double refelctivity){
+    static G4OpticalSurface* optical_surface = nullptr;
+    if (! optical_surface) {
+        optical_surface = new G4OpticalSurface(name);
+        optical_surface -> SetType(dielectric_dielectric);
+        optical_surface -> SetModel(glisur);
+        optical_surface -> SetFinish(ground);
+        optical_surface -> SetSigmaAlpha(0.01);
+
+        vecd pp = {1.*eV, 1.*MeV};
+        optical_surface -> SetMaterialPropertiesTable(
+            n4::material_properties{}
+            .add("REFLECTIVITY", pp, {refelctivity , refelctivity})
+            .done());
+    }
+    new G4LogicalSkinSurface(name, one, optical_surface);
+}
+
 void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & fcp, bool TPBon, bool OpticalSurfaceON, G4String detector) {     
   //Upper steel plate at the pmt clad
   n4::tubs("PMTplateUp").r_inner(fcp.plateUp_pmt_rad).r_delta(fcp.plateUp_pmt_thickn).z(fcp.plateUp_pmt_length).place(steel).in(vessel).at_z(fcp.plateUp_pmt_z).check_overlaps().now();
@@ -291,9 +310,10 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & 
       //TPB on top of the PMTs
       if (TPBon == true){
 	    pos_tpb = {pos_pmt[0], pos_pmt[1], pos_pmt[2] + fcp.pmt_length/2 + fcp.TPB_PMTs_length/2};
-	    G4PVPlacement* TPB_in_PMTs = n4::tubs("TPBinPMTs").r(fcp.TPB_PMTs_rad).z(fcp.TPB_PMTs_length).place(tpb).in(vessel).at(pos_tpb).copy_no(i).check_overlaps().now();
+	    auto TPB_in_PMTs = n4::tubs("TPBinPMTs").r(fcp.TPB_PMTs_rad).z(fcp.TPB_PMTs_length).volume(tpb);
+	    n4::place(TPB_in_PMTs).in(vessel).at(pos_tpb).copy_no(i).check_overlaps().now();
           if (OpticalSurfaceON == true){
-          place_optical_surface_between(TPB_in_PMTs, PMTs, "OpticalSurfaceTPBtoTeflonCage", 1);
+          place_skin_optical_surface_between(TPB_in_PMTs, "OpticalSurfaceTPBtoTeflonCage", 0.65);
         }
 	  }
     }		
