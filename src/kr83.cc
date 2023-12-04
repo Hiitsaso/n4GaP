@@ -33,7 +33,7 @@ void kr83_generator(G4Event* event, G4double energy_32_ , G4double energy_9_ , G
     auto particle_defelectron_ = nain4::find_particle("e-");
       
     // Ask the geometry to generate a position for the particle
-    G4ThreeVector position = random_generator_inside_S1({});
+    G4ThreeVector position = random_generator_inside_S1({}, {}, {});
 
    // First transition (32 kEv) Always one electron. Set it's kinetic energy.
    // Decide if we emit an X-ray..
