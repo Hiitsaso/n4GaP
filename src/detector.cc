@@ -44,7 +44,9 @@ bool process_hits(G4Step *step){
     field_cage_parameters fcp = version2_parameters();
 				
 	//~ const std::string& filename_map = "files_4SiPM/OP_Ar_128nm_S2_Z5mm_0mm_5000000.txt";
-	const std::string& filename_map = "files_OneSiPM/v3_MESH_RAD/OP_Ar_128nm_S2_Z5mm_10000000_fixed{4_4_S2z}.txt";
+	const std::string& filename_map = "/home/hiitsaso/n4_GaProyect/nan.txt";
+	//~ const std::string& filename_map = "/home/hiitsaso/n4_GaProyect/files/no_WLS_no_EL/from_S2/OP_Ar_128nm_S2_10000000_random_v2.txt";
+	//~ const std::string& filename_map = " files/no_WLS_no_EL/from_S2/OP_Ar_128nm_S2_10000000_random.txt";
 	//~ const std::string& filename_map = "files_OneSiPM/v3_MESH_RAD/test.txt";
 	//~ const std::string& filename_map = "files_OneSiPM/v3_MESH_RAD/random_test6.txt";
 	G4Track* track = step -> GetTrack();
@@ -81,6 +83,14 @@ bool process_hits(G4Step *step){
 		file1 << std::left << std::setw(colWidth) << hits_check;
 		file1 << std::endl;
 		file1.close();
+		
+		//~ if(file1.is_open()){ 
+		//~ G4cout << "*************************************  :)  FILE DONE  (:  *************************************"  << G4endl; 
+		//~ }else{
+		//~ G4cerr << "Error opening file: " << strerror(errno) << G4endl;
+		//~ G4cerr << "Error: File does not exist - " << filename_map << G4endl;
+		//~ G4cout << "*************************************  :)  FILE NOOOOT DONE  (:  *************************************"  << G4endl; } 
+				
 	//~ }
 	
 	return true;

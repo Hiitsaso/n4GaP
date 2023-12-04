@@ -379,8 +379,8 @@ const std::string filename_event_2 = "nan.txt";
     auto physics_list = new FTFP_BERT{verbosity};
     physics_list ->  ReplacePhysics(new G4EmStandardPhysics_option4());
     physics_list -> RegisterPhysics(new G4OpticalPhysics{});
-    physics_list -> RegisterPhysics(new G4RadioactiveDecayPhysics);
-    physics_list -> RegisterPhysics(new G4DecayPhysics());
+    //~ physics_list -> RegisterPhysics(new G4RadioactiveDecayPhysics);
+    //~ physics_list -> RegisterPhysics(new G4DecayPhysics());
     physics_list -> RegisterPhysics(new ExtraPhysics{});
 
 	auto generic_messenger = new G4GenericMessenger(nullptr,"/beam/", "Particle beam generator");
@@ -388,18 +388,19 @@ const std::string filename_event_2 = "nan.txt";
 	G4int contador = 4;
 	G4double fixed_x = contador*15./4 *mm;
 	G4double fixed_y = contador*15./4 *mm;
-	G4double fixed_z = fcp.vessel_z + fcp.S2_z;
+	G4double fixed_z = fcp.S2_z - fcp.anodeBracket_z;
 	generic_messenger -> DeclareProperty("fixed_x", fixed_x,"position of the generated particle in the x direction");
 	generic_messenger -> DeclareProperty("fixed_y", fixed_y,"position of the generated particle in the y direction");
 	generic_messenger -> DeclareProperty("fixed_z", fixed_z,"position of the generated particle in the z direction");
 	G4String particleDefinition = "opticalphoton";
 	generic_messenger -> DeclareProperty("particleDefinition", particleDefinition,"Type of the generated particle");
+	G4double particleWavelenght = 128 *nm *1e6;
+	generic_messenger -> DeclareProperty("particleWavelenght", particleWavelenght,"Wavelength of the generated particle, it will be used to calculate the particle's energy with ");
 	G4double particleEnergy = 9.693*eV; //(128nm for Ar) 
 	//~ G4double particleEnergy = 2.954*eV;  //(420nm for Ar)
 	//~ G4double particleEnergy = 6.965*eV; //(178nm for Xe) 
 	generic_messenger -> DeclareProperty("particleEnergy", particleEnergy,"Energy of the generated particle");
-	
-	
+
     //~ auto run_manager = std::unique_ptr<G4RunManager>
         //~ {G4RunManagerFactory::CreateRunManager(G4RunManagerType::Serial)};
 
@@ -407,7 +408,9 @@ const std::string filename_event_2 = "nan.txt";
     //~ run_manager -> SetUserInitialization(physics_list);
     
     //G4ParticleTable needs to be call after G4VUserPhysicsList is instantiated and assigned to G4RunManager
-	auto opticalphoton = [&fixed_x, &fixed_y, &fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, random_generator_inside_S2(fixed_x, fixed_y, fixed_z), generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
+	auto opticalphoton = [&fixed_x, &fixed_y, &fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, random_generator_inside_S2({}, {}, {}), generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
+	//~ auto particle_test = [&particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event,{0.,0, 10*cm}, generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
+	auto particle_test = [&particleDefinition, &particleWavelenght, &fixed_z](auto event){generate_particles_in_event(event,{0.,0.,10.*cm}, generate_partilces_and_energies_tuples(particleDefinition, c4::hc/(particleWavelenght*1e-6)));};   	
 		//auto opticalphoton_test = [&fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, {0., 0., fixed_z}, generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
 		//auto box_source = [](auto event){generate_particles_in_event(event, {0., 0., 167.6775*mm + 50.*mm}, generate_partilces_and_energies_tuples());};  //From the box_source
 		//auto kr83m = [](auto event){generate_ion_decay(event, random_generator_inside_drift({}), 0);}; 
@@ -442,7 +445,7 @@ const std::string filename_event_2 = "nan.txt";
 		.macro_path("macs")
 		.physics(physics_list)
         .geometry(GeometryV2)
-        .actions(opticalphoton)
+        .actions(particle_test)
         .run();
 
 }

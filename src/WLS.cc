@@ -189,21 +189,22 @@
 
      const G4Material* material = track.GetMaterial();
      G4MaterialPropertiesTable* aMaterialPropertiesTable = material->GetMaterialPropertiesTable();
+
      if (aMaterialPropertiesTable) {
        G4MaterialPropertyVector* WLS_Conversion_Efficiency=
 	 aMaterialPropertiesTable->GetProperty("WLSCONVEFFICIENCY");
-       if (WLS_Conversion_Efficiency) {
+	       if (WLS_Conversion_Efficiency) {
 	 const G4DynamicParticle* particle = track.GetDynamicParticle();
 
 	 G4double thePhotonEnergy = particle->GetTotalEnergy();
 	 G4double conversion_efficiency =
 	   WLS_Conversion_Efficiency->Value(thePhotonEnergy);
-
 	 // If the photon has zero conversion efficiency, it must not enter the process at all.
 	 if (conversion_efficiency == 0.) {
 	   return AttenuationLength;
 	 }
-	 // ParticleChange_->SetNumberOfSecondaries(1);
+	 
+	 ParticleChange_->SetNumberOfSecondaries(1);
 	 AttenuationLength = DBL_MIN;
        }
      }

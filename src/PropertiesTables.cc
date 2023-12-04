@@ -23,8 +23,12 @@ using vecd = std::vector<G4double>;
 
 const G4double optPhotMinE_   =  0.2  * eV;
 const G4double optPhotMaxE_   = 11.5  * eV;
-const G4double optPhotMaxWL_  = optPhotMinE_ * nm / c4::hc;
-const G4double optPhotMinWL_  = optPhotMaxE_ * nm / c4::hc;
+const G4double optPhotMaxWL_  = c4::hc / (optPhotMinE_ * nm);
+const G4double optPhotMinWL_  = c4::hc / (optPhotMaxE_ * nm);
+//~ const G4double optPhotMaxWL_  = optPhotMinE_ * nm / c4::hc;
+//~ const G4double optPhotMinWL_  = optPhotMaxE_ * nm / c4::hc;
+//~ const G4double optPhotMaxWL_  = c4::hc/optPhotMinE_*eV/(nm*nm);
+//~ const G4double optPhotMinWL_  = c4::hc/optPhotMaxE_*eV/(nm*nm);
 const G4double noAbsLength_   = 1.e8  * m;
 const vecd     optPhotRangeE_ = {optPhotMinE_, optPhotMaxE_};
 
@@ -36,11 +40,11 @@ G4MaterialPropertiesTable* peek_properties(){
 
 //////////////////////////////////////////////////////////////////////// OK
 G4MaterialPropertiesTable* aluminum_properties(){ 
-	return n4::material_properties()
+	return  n4::material_properties()
 		//~ .add("REALRINDEX",  {9.686*eV, 2.954*eV}, {0.049467, 0.54105})
 		//~ .add("IMAGINARYRINDEX",  {9.686*eV, 2.954*eV}, {1.2201, 5.0843})
 		.add("RINDEX", {9.686*eV, 2.954*eV}, {1., 1.})
-		.done(); 
+		.done();
 }
 
 //////////////////////////////////////////////////////////////////////// OK
@@ -95,7 +99,6 @@ G4MaterialPropertiesTable* GXe_properties(G4double pressure,
     .add("SCINTILLATIONYIELD2"       ,    .9)
     .NEW("ATTACHMENT"                , e_lifetime)
     .done();
-
 }
 
 //////////////////////////////////////////////////////////////////////// OK
@@ -189,12 +192,11 @@ G4MaterialPropertiesTable* quartz_properties(){
     .add("ABSLENGTH", abs_energy, absLength)
     //.NEW("WORK_FUNCTION", 4.823*eV) //Not defined in the original code
     .done();
-
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-G4MaterialPropertiesTable* TPB_properties() {
+G4MaterialPropertiesTable* TPB_properties() {	
   // WLS ABSORPTION LENGTH (Version NoSecWLS)
   // The NoSecWLS is forced by setting the WLS_absLength to a very large value
   // for wavelengths higher than 380 nm where the WLS emission spectrum starts.
@@ -202,46 +204,50 @@ G4MaterialPropertiesTable* TPB_properties() {
   auto WLS_abs_energy = n4::const_over(c4::hc/nm, {optPhotMaxWL_, 380, 370, 360, 330, 320, 310, 300, 270, 250, 230, 210, 190, 170, 150, optPhotMinWL_});
   auto WLS_absLength  = n4::scale_by   (       nm, {infinite, infinite,  50,  30,  30,  50,  80, 100, 100, 400, 400, 350, 250, 350, 400, 400          });
 
-  for (int i=0; i<WLS_abs_energy.size(); i++)
-    G4cout << "* TPB WLS absLength:  " << std::setw(8) << WLS_abs_energy[i] / eV
-           << " eV  ==  "              << std::setw(8) << (c4::hc / WLS_abs_energy[i]) / nm
-           << " nm  ->  "              << std::setw(6) << WLS_absLength[i] / nm << " nm" << G4endl;
-
+  //~ for (int i=0; i<WLS_abs_energy.size(); i++)
+    //~ G4cout << "* TPB WLS absLength:  " << std::setw(8) << WLS_abs_energy[i] / eV
+           //~ << " eV  ==  "              << std::setw(8) << (c4::hc / WLS_abs_energy[i]) / nm
+           //~ << " nm  ->  "              << std::setw(6) << WLS_absLength[i] / nm << " nm" << G4endl;
+           
+  //~ G4cout << "c4::hc" << c4::hc << G4endl;
+    //~ G4cout << "h_Planck" << h_Planck << G4endl;
+    //~ G4cout << "c_light" << c_light << G4endl;
+    //~ G4cout << "nm " << nm << G4endl;
+   
   // WLS EMISSION SPECTRUM
   // Implemented with formula (7), with parameter values in table (3)
   // Sampling from ~380 nm to 600 nm <--> from 2.06 to 3.26 eV
   const G4int WLS_emi_entries = 120;
-  vecd WLS_emi_energy(WLS_emi_entries);
-  for (int i=0; i<WLS_emi_entries; i++) { WLS_emi_energy.push_back( (2.06 + 0.01 * i) * eV); }
+    std::vector<G4double> WLS_emi_energy;
+    for (int i=0; i<WLS_emi_entries; i++)
+      WLS_emi_energy.push_back(2.06 * eV + 0.01 * i * eV);
 
-  auto tpb_emission_spectrum = [] (G4double e) {
-     auto A      =   0.782;
-     auto alpha  =   0.037;
-     auto sigma1 =  15.43 ; // in nm
-     auto mu1    = 418.10 ; // in nm
-     auto sigma2 =   9.72 ; // in nm
-     auto mu2    = 411.2  ; // in nm
+  std::vector<G4double> WLS_emiSpectrum;
+  G4double A      = 0.782;
+  G4double alpha  = 3.7e-2;
+  G4double sigma1 = 15.43;
+  G4double mu1    = 418.10;
+  G4double sigma2 = 9.72;
+  G4double mu2    = 411.2;
 
-     auto wl       = c4::hc / e / nm;
-     auto exponent = alpha * (mu1 + alpha * pow(sigma1, 2)/2 - wl);
-     auto erfc_arg = (mu1 + alpha * pow(sigma1, 2) - wl) / (sqrt(2) * sigma1);
-     auto gaussian = 1 / sqrt(CLHEP::twopi) / sigma2
-                   * exp(-pow(wl - mu2, 2) / 2 / pow(sigma2, 2));
-
-     return A * alpha/2 * exp(exponent) * erfc(erfc_arg) + (1-A) * gaussian;
+  for (int i=0; i<WLS_emi_entries; i++) {
+    G4double wl = (h_Planck * c_light / WLS_emi_energy[i]) / nm;
+    WLS_emiSpectrum.push_back(A * (alpha/2.) * exp((alpha/2.) *
+                        (2*mu1 + alpha*pow(sigma1,2) - 2*wl)) *
+                        erfc((mu1 + alpha*pow(sigma1,2) - wl) / (sqrt(2)*sigma1)) +
+                        (1-A) * (1 / sqrt(2*pow(sigma2,2)*3.1416)) *
+                              exp((-pow(wl-mu2,2)) / (2*pow(sigma2,2))));
+     //~ G4cout << "* TPB WLSemi:  " << std::setw(4)
+            //~ << wl << " nm -> " << WLS_emiSpectrum[i] << G4endl;
   };
 
-  vecd WLS_emiSpectrum(WLS_emi_energy.size());
-  std::transform(begin(WLS_emi_energy), end(WLS_emi_energy), begin(WLS_emiSpectrum), tpb_emission_spectrum);
-
-   //~ G4cout << "* TPB WLSemi:  " << std::setw(4)
-          //~ << wl << " nm -> " << WLS_emiSpectrum[i] << G4endl;
+  //~ vecd WLS_emiSpectrum(WLS_emi_energy.size());
+  //~ std::transform(begin(WLS_emi_energy), end(WLS_emi_energy), begin(WLS_emiSpectrum), tpb_emission_spectrum);
 
   return n4::material_properties()
-    .add("RINDEX"               , optPhotRangeE_, 1.67)
+    .add("RINDEX"               , optPhotRangeE_, 1.67)//before 1.67
     // Assuming no absorption except WLS
-    //~ .add("ABSLENGTH"            , optPhotRangeE_, noAbsLength_) // Wrong argument replaced (see previous line)
-    .add("ABSLENGTH"            , optPhotRangeE_, 1. *m) // Wrong argument replaced (see previous line)
+    .add("ABSLENGTH"            , optPhotRangeE_, noAbsLength_) // Wrong argument replaced (see previous line)
     .add("WLSABSLENGTH"         , WLS_abs_energy, WLS_absLength)
     .add("WLSCOMPONENT"         , WLS_emi_energy, WLS_emiSpectrum)
     .add("WLSTIMECONSTANT"      , 1.2 * ns) // WLS Delay
@@ -249,8 +255,9 @@ G4MaterialPropertiesTable* TPB_properties() {
     // According to the paper, the QE of TPB depends on the incident wavelength.
     // As Geant4 doesn't allow this possibility, it is set to the value corresponding
     // to Xe scintillation spectrum peak.
-    .NEW("WLSCONVEFFICIENCY", 1. ) //Not in the original code
-    .done();
+    //.NEW("WLSCONVEFFICIENCY", 1.)
+    .done();	
+    
 }
 ////////////////////////////////////////////////////////////////////////
 G4MaterialPropertiesTable* GAr_properties(G4double sc_yield, G4double e_lifetime){

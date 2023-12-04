@@ -90,6 +90,8 @@ struct field_cage_parameters {
   G4double SiPMs_cage_short;
   G4double SiPMs_cage_thickn;
   G4double anode_to_SiPMs;
+  G4double SiPMs_ef_xy;
+  G4double SiPMs_ef_between;
   
   G4double SiPM_between_long;
   G4double SiPM_between_short;

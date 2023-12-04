@@ -147,11 +147,13 @@ field_cage_parameters version2_parameters() {
   fcp.SiPMs_cage_long    = 15.  *mm; 
   fcp.SiPMs_cage_short   = 15.  *mm; 
   fcp.SiPMs_cage_thickn  = 2.   *mm; 
-  fcp.anode_to_SiPMs      = 5.   *mm; 
+  fcp.anode_to_SiPMs     = 5.   *mm; 
+  fcp.SiPMs_ef_xy        = 6.   *mm;
+  fcp.SiPMs_ef_between   = 0.5  *mm;
   
-  fcp.SiPM_between_long  = 0. *mm;
-  fcp.SiPM_between_short = 0. *mm;
-  fcp.SiPM_number        = 5;
+  fcp.SiPM_between_long  = 5. *mm;
+  fcp.SiPM_between_short = 5. *mm;
+  fcp.SiPM_number        = 4;
   
   fcp.Pb_box_lengt_xy = 100 *mm;
   fcp.Pb_box_lengt_z  = 50  *mm;
@@ -226,6 +228,7 @@ void ensure_initialized(field_cage_parameters const & fcp) {
   plastic = plastic_with_properties();
   silicon = silicon_with_properties();
   Pb      = Pb_with_properties();
+  air     = air_with_properties();
   world = n4::box("world").cube(world_size).volume(vacuum);
 }
 
@@ -234,28 +237,30 @@ G4LogicalVolume* get_world(field_cage_parameters const & fcp) {
   return world;
 }
 
-void place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4String name, G4double refelctivity){
+void TEFLON_place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4String name){
     static G4OpticalSurface* optical_surface = nullptr;
     if (! optical_surface) {
         optical_surface = new G4OpticalSurface(name);
         // Values from same paper as above ("Optimization of Parameters...")
         // "groundfrontpainted" (I think) only considers whether the photon is reflected or absorbed, so there will be no shine through visible in the simulation
-        optical_surface -> SetType(dielectric_metal);
+        // According to the docs, for UNIFIED, dielectric_dielectric surfaces only the Lambertian reflection is turned on
+        optical_surface -> SetType(dielectric_dielectric);
         optical_surface -> SetModel(unified);
         optical_surface -> SetFinish(polished);
         optical_surface -> SetSigmaAlpha(0.0);
 
-        vecd pp = {1.*eV, 1.*MeV};
-        // According to the docs, for UNIFIED, dielectric_dielectric surfaces only the Lambertian reflection is turned on
+        vecd pp = n4::scale_by( eV, {8.8560, 8.2656, 7.7490, 7.2932, 6.8880, 5.6356, 5.1660, 4.7686, 4.4280, 4.1328, 3.5424, 3.0996, 2.4797});
+        vecd R  =                   {0.05, 0.05, 0.15, 0.30, 0.60, .88, .90, .93, .95, .98, .98, .98, .98};
         optical_surface -> SetMaterialPropertiesTable(
             n4::material_properties{}
-            .add("REFLECTIVITY", pp, {refelctivity , refelctivity})
+            .add("REFLECTIVITY", pp, R)
             .done());
     }
     new G4LogicalBorderSurface(name, one, two, optical_surface);
 }
 
-void place_skin_optical_surface_between(G4LogicalVolume* one, G4String name, G4double refelctivity){
+void place_skin_optical_surface_between(G4LogicalVolume* one, G4String name){
+    //Para que no se queden atrapados en el tpb
     static G4OpticalSurface* optical_surface = nullptr;
     if (! optical_surface) {
         optical_surface = new G4OpticalSurface(name);
@@ -263,17 +268,45 @@ void place_skin_optical_surface_between(G4LogicalVolume* one, G4String name, G4d
         optical_surface -> SetModel(glisur);
         optical_surface -> SetFinish(ground);
         optical_surface -> SetSigmaAlpha(0.01);
-
-        vecd pp = {1.*eV, 1.*MeV};
-        optical_surface -> SetMaterialPropertiesTable(
-            n4::material_properties{}
-            .add("REFLECTIVITY", pp, {refelctivity , refelctivity})
-            .done());
     }
+    
+    vecd pp = n4::scale_by( eV, {2.4797, 2.8178, 2.9520, 3.0996, 3.2627, 3.3509, 3.4440, 3.6466, 3.8745});
+    vecd R  =                   {.84, .82, .82, .82, .52, .36, .26, .30, .32};
+    vecd T  =                   {.16, .17, .18, .19, .16, .14, .13, .11, .12};
+
+    optical_surface -> SetMaterialPropertiesTable(
+            n4::material_properties{}
+            .add("REFLECTIVITY",  pp, R)
+            .add("TRANSMITTANCE", pp, T)
+            .done());
+            
     new G4LogicalSkinSurface(name, one, optical_surface);
 }
 
-void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & fcp, bool TPBon, bool OpticalSurfaceON, G4String detector) {     
+void TPB_place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4String name){
+    static G4OpticalSurface* optical_surface = nullptr;
+    if (! optical_surface) {
+        optical_surface = new G4OpticalSurface(name);
+        optical_surface -> SetType(dielectric_dielectric);
+        optical_surface -> SetModel(glisur);
+        optical_surface -> SetFinish(ground);
+        optical_surface -> SetSigmaAlpha(0.01);
+    }
+    
+    vecd pp = n4::scale_by( eV, {2.4797, 2.8178, 2.9520, 3.0996, 3.2627, 3.3509, 3.4440, 3.6466, 3.8745});
+    vecd R  =                   {.84, .82, .82, .82, .52, .36, .26, .30, .32};
+    vecd T  =                   {.16, .17, .18, .19, .16, .14, .13, .11, .12};
+
+    optical_surface -> SetMaterialPropertiesTable(
+            n4::material_properties{}
+            .add("REFLECTIVITY",  pp, R)
+            .add("TRANSMITTANCE", pp, T)
+            .done());
+            
+    new G4LogicalBorderSurface(name, one, two, optical_surface);
+}
+
+void place_pmt_holder_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placement, field_cage_parameters const & fcp, bool TPBon, G4String detector) {     
   //Upper steel plate at the pmt clad
   n4::tubs("PMTplateUp").r_inner(fcp.plateUp_pmt_rad).r_delta(fcp.plateUp_pmt_thickn).z(fcp.plateUp_pmt_length).place(steel).in(vessel).at_z(fcp.plateUp_pmt_z).check_overlaps().now();
   
@@ -311,10 +344,10 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & 
       if (TPBon == true){
 	    pos_tpb = {pos_pmt[0], pos_pmt[1], pos_pmt[2] + fcp.pmt_length/2 + fcp.TPB_PMTs_length/2};
 	    auto TPB_in_PMTs = n4::tubs("TPBinPMTs").r(fcp.TPB_PMTs_rad).z(fcp.TPB_PMTs_length).volume(tpb);
-	    n4::place(TPB_in_PMTs).in(vessel).at(pos_tpb).copy_no(i).check_overlaps().now();
-          if (OpticalSurfaceON == true){
-          place_skin_optical_surface_between(TPB_in_PMTs, "OpticalSurfaceTPBtoTeflonCage", 0.65);
-        }
+	    auto TPB_in_PMTs_placement = n4::place(TPB_in_PMTs).in(vessel).at(pos_tpb).copy_no(i).check_overlaps().now();
+	    
+        TPB_place_optical_surface_between(TPB_in_PMTs_placement, vessel_placement, "OpticalSurfaceTPBtoVessel");
+        TPB_place_optical_surface_between(TPB_in_PMTs_placement, PMTs, "OpticalSurfaceTPBtoPMTs");
 	  }
     }		
   }
@@ -333,10 +366,6 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & 
   if (detector == "SiPM"){   
     G4int N = fcp.SiPM_number;
     auto max = 0.;
-    
-    //~ G4LogicalVolume* logic_4SiPM = n4::box("4SiPM").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).volume(silicon);
-	//~ auto sensitive_detector = new n4::sensitive_detector("4Detector", process_hits);
-    //~ logic_4SiPM -> SetSensitiveDetector(sensitive_detector);
   
     //~ if (N%2 == 0){ 
 	 
@@ -361,19 +390,48 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, field_cage_parameters const & 
 	  //~ }
     //~ }  
     
-    //~ for (G4int i = -N/2; i < N/2 + 1; ++i) {
-	  //~ G4double posX = fcp.SiPMs_cage_long*i + fcp.SiPM_between_long*i;
-      //~ for (G4int j = -N/2; j < N/2 + 1; ++j) {
-        //~ G4double posY = fcp.SiPMs_cage_short*j + fcp.SiPM_between_short*j;
-        //~ G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
-		//~ n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
-      //~ }
-   //~ } 
+    G4LogicalVolume* logic_4SiPM = n4::box("4SiPM").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).volume(plastic);
+	G4Box* solid_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn).solid();
+    G4LogicalVolume* logic_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn)
+									  .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
+									  .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between),                                        0., 0.}) 
+									  .add(solid_4SiPM_ef).at({                                       0., -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
+									  .volume(silicon);
+	auto sensitive_detector = new n4::sensitive_detector("4Detector", process_hits);
+    logic_4SiPM_ef -> SetSensitiveDetector(sensitive_detector); 
+    
+    for (G4int i = -N/2; i < N/2 + 1; ++i) {
+      for (G4int j = -N/2; j < N/2 + 1; ++j) {
+		if (i != 0 and j!=0){
+			auto i_new = 0.;
+			auto j_new = 0.;
+			if (i>=0 and j>=0){
+				i_new = i - 0.5;
+				j_new = j - 0.5;
+			}else if (i<=0 and j>=0){
+				i_new = i + 0.5;
+				j_new = j - 0.5;				
+			}else if (i<=0 and j<=0){
+				i_new = i + 0.5;
+				j_new = j + 0.5;
+			}else{
+				i_new = i - 0.5;
+				j_new = j + 0.5;
+			}
+			G4double posX = fcp.SiPMs_cage_long*i_new + fcp.SiPM_between_long*i_new;
+			G4double posY = fcp.SiPMs_cage_short*j_new + fcp.SiPM_between_short*j_new;
+			G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
+			n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
+			n4::place(logic_4SiPM_ef).in(logic_4SiPM).at({(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, (fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, 0.}).check_overlaps().now();
+
+		}
+      }
+   } 
    
-    G4LogicalVolume* logic_OneSiPM = n4::box("OneSiPM").xy(2*fcp.mesh_rad).z(fcp.SiPMs_thickn).volume(silicon);
-    auto sensitive_detector = new n4::sensitive_detector("OneDetector", process_hits);
-    logic_OneSiPM -> SetSensitiveDetector(sensitive_detector);
-    n4::place(logic_OneSiPM).in(vessel).at_z(fcp.SiPMs_z).check_overlaps().now();
+    //~ G4LogicalVolume* logic_OneSiPM = n4::box("OneSiPM").xy(2*fcp.mesh_rad).z(fcp.SiPMs_thickn).volume(silicon);
+    //~ auto sensitive_detector = new n4::sensitive_detector("OneDetector", process_hits);
+    //~ logic_OneSiPM -> SetSensitiveDetector(sensitive_detector);
+    //~ n4::place(logic_OneSiPM).in(vessel).at_z(fcp.SiPMs_z).check_overlaps().now();
     
   }
 }
@@ -413,16 +471,18 @@ void place_teflon_cage_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placeme
   if (TPBon == true){
     G4PVPlacement* TPB_in_TeflonCage = n4::tubs("TPBinTefloncage").r(fcp.TPB_tefloncage_rad).r_delta(fcp.TPB_tefloncage_thickn).z(fcp.TPB_tefloncage_length).place(tpb).in(vessel).at_z(fcp.TPB_tefloncage_z).check_overlaps().now();    
 	  if (OpticalSurfaceON == true){
-        place_optical_surface_between(TPB_in_TeflonCage,    TeflonCage,  "OpticalSurfaceTPBtoTeflonCage", 0.98);
-        place_optical_surface_between( vessel_placement, Teflon_ring_1, "OpticalSurfaceTPBtoTeflonRing1", 0.98);
-        place_optical_surface_between( vessel_placement, Teflon_ring_2, "OpticalSurfaceTPBtoTeflonRing2", 0.98);
-        place_optical_surface_between( vessel_placement, Teflon_ring_3, "OpticalSurfaceTPBtoTeflonRing3", 0.98);
+        TEFLON_place_optical_surface_between(TPB_in_TeflonCage,    TeflonCage, "OpticalSurfaceTPBToTeflonCage");
+        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_1, "OpticalSurfaceVesselToTeflonRing1");
+        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_2, "OpticalSurfaceVesselToTeflonRing2");
+        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_3, "OpticalSurfaceVesselToTeflonRing3");
+        
+        TPB_place_optical_surface_between(TPB_in_TeflonCage,    vessel_placement, "OpticalSurfaceTPBToVessel");
       }
-  } else if (TPBon == false && OpticalSurfaceON == true){
-	  place_optical_surface_between(vessel_placement,    TeflonCage, "OpticalSurfaceVesseltoTeflonCage", 0.98);	  
-	  place_optical_surface_between(vessel_placement, Teflon_ring_1,   "OpticalSurfaceTPBtoTeflonRing1", 0.98);	  
-	  place_optical_surface_between(vessel_placement, Teflon_ring_2,   "OpticalSurfaceTPBtoTeflonRing2", 0.98);	  
-	  place_optical_surface_between(vessel_placement, Teflon_ring_3,   "OpticalSurfaceTPBtoTeflonRing3", 0.98);	  
+  //~ } else if (TPBon == false && OpticalSurfaceON == true){
+	  //~ TEFLON_place_optical_surface_between(vessel_placement,    TeflonCage, "OpticalSurfaceVesseltoTeflonCage");	  
+	  //~ TEFLON_place_optical_surface_between(vessel_placement, Teflon_ring_1,   "OpticalSurfaceTPBtoTeflonRing1");	  
+	  //~ TEFLON_place_optical_surface_between(vessel_placement, Teflon_ring_2,   "OpticalSurfaceTPBtoTeflonRing2");	  
+	  //~ TEFLON_place_optical_surface_between(vessel_placement, Teflon_ring_3,   "OpticalSurfaceTPBtoTeflonRing3");	  
   }
 }
 
@@ -477,12 +537,12 @@ G4PVPlacement* GeometryV2() {
   auto vessel_placement = n4::place(vessel).in(world).at_z(fcp.vessel_z).check_overlaps().now();
   
   //bool1 = TPBon ; bool2 = OpticalSurfaceON
-  place_pmt_holder_in(vessel, fcp, false, false, "SiPM"); //SiPM or PMT
-  place_cage_in(vessel, fcp);
-  place_teflon_cage_in(vessel, vessel_placement, fcp, false, false);
-  place_rings_in(vessel, fcp);
+  place_pmt_holder_in(vessel, vessel_placement, fcp, true, "SiPM"); //SiPM or PMT
+  //~ place_cage_in(vessel, fcp);
+  //~ place_teflon_cage_in(vessel, vessel_placement, fcp, true, true);
+  //~ place_rings_in(vessel, fcp);
   //place_encapsulation_in(vessel, fcp);
-  place_S1_and_S2_in(vessel, fcp);
+  //~ place_S1_and_S2_in(vessel, fcp);
   //place_Pb_box_in(vessel, fcp);
   
   return n4::place(world).now();
@@ -492,40 +552,27 @@ G4PVPlacement* GeometryV2_TEST() {
   field_cage_parameters fcp = version2_parameters();
   ensure_initialized(fcp);
   
-  G4int N = fcp.SiPM_number;
-    auto max = 0.;
+  //TPB análisis
+  //~ auto worldbox = n4::box("Box").xy(world_size).z(world_size).place(gas).in(world).at_z(0.).check_overlaps().now();
+  //~ auto box2     = n4::box("Box2").xy(world_size).z(3. *micrometer).volume(tpb);
+  //~ // auto box2     = n4::box("Box2").xy(world_size).z(3. *mm).volume(tpb);
+  //~ auto box2_plc = n4::place(box2).in(worldbox).at_z(0.).check_overlaps().now();
+  //~ // place_skin_optical_surface_between(box2, "opticalskintest");
+  //~ // TPB_place_optical_surface_between(worldbox, box2_plc, "opticalsurfacetest1");
+  //~ TPB_place_optical_surface_between(box2_plc, worldbox, "opticalsurfacetest2");
   
-    if (N%2 == 0){ 
-	 
-	  N = fcp.SiPM_number - 1;  //par
-	  G4int lim = (2*fcp.SiPM_number - 5)/4;
+  //Teflón análisis
+  //TPB análisis
+  auto worldbox = n4::box("Box").xy(world_size).z(world_size).place(gas).in(world).at_z(0.).check_overlaps().now();
+  auto box2     = n4::box("Box2").xy(world_size).z(3. *micrometer).volume(teflon);
+  auto box3     = n4::box("Box2").xy(world_size).z(world_size/4).volume(steel);
+  //~ auto box2     = n4::box("Box2").xy(world_size).z(3. *mm).volume(tpb);
+  auto box2_plc = n4::place(box2).in(worldbox).at_z(0.).check_overlaps().now();
+  auto box3_plc = n4::place(box3).in(worldbox).at_z(-world_size/8).check_overlaps().now();
+  //~ place_skin_optical_surface_between(box2, "opticalskintest");
+  TEFLON_place_optical_surface_between(worldbox, box2_plc, "opticalsurfacetest1");
+  //~ place_optical_surface_between(box2_plc, worldbox, "opticalsurfacetest2");
   
-      for (G4int i = -lim/2; i < lim/2 + 1; ++i) {
-		G4double posX = (fcp.SiPMs_cage_long + fcp.SiPM_between_long)*fcp.SiPM_number/2;  //fijo
-		G4double posY = fcp.SiPMs_cage_short*i + fcp.SiPM_between_short*i;
-		G4ThreeVector pos  = {posX, posY, fcp.SiPMs_z};
-		G4ThreeVector pos_ = {-posX, posY, fcp.SiPMs_z};
-	    n4::box("test").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).place(silicon).in(world).at(pos).check_overlaps().now();
-	    n4::box("test").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).place(silicon).in(world).at(pos_).check_overlaps().now();
-	  }
-      for (G4int j = -lim/2; j < lim/2 + 1; ++j) {
-		G4double posY = (fcp.SiPMs_cage_short + fcp.SiPM_between_short)*fcp.SiPM_number/2;  //fijo
-		G4double posX =  fcp.SiPMs_cage_long*j + fcp.SiPM_between_long*j;
-		G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
-		G4ThreeVector pos_ = {posX, -posY, fcp.SiPMs_z};
-	    n4::box("test").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).place(silicon).in(world).at(pos).check_overlaps().now();
-	    n4::box("test").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).place(silicon).in(world).at(pos_).check_overlaps().now();
-	  }
-    }  
-    
-    for (G4int i = -N/2; i < N/2 + 1; ++i) {
-	  G4double posX = fcp.SiPMs_cage_long*i + fcp.SiPM_between_long*i;
-      for (G4int j = -N/2; j < N/2 + 1; ++j) {
-        G4double posY = fcp.SiPMs_cage_short*j + fcp.SiPM_between_short*j;
-        G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
-		n4::box("test").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).place(silicon).in(world).at(pos).check_overlaps().now();
-      }
-   } 
   return n4::place(world).now();
 }
 
