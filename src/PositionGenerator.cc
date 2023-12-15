@@ -53,7 +53,7 @@ G4ThreeVector random_generator_inside_S2(std::optional<G4double> fixed_x, std::o
 	    
     auto zmin  = fcp.S2_z - fcp.S2_lenght/2 - fcp.anodeBracket_z; 
     auto zmax  = fcp.S2_z + fcp.S2_lenght/2 - fcp.anodeBracket_z; 
-    auto rmax  = fcp.S2_rad;
+    auto rmax  = fcp.mesh_rad;
     
     auto pos_x = 90.;
 	auto pos_y = 90.;

@@ -396,8 +396,8 @@ const std::string filename_event_2 = "nan.txt";
 	generic_messenger -> DeclareProperty("particleDefinition", particleDefinition,"Type of the generated particle");
 	G4double particleWavelenght = 128 *nm *1e6;
 	generic_messenger -> DeclareProperty("particleWavelenght", particleWavelenght,"Wavelength of the generated particle, it will be used to calculate the particle's energy with ");
-	G4double particleEnergy = 9.693*eV; //(128nm for Ar) 
-	//~ G4double particleEnergy = 2.954*eV;  //(420nm for Ar)
+	//~ G4double particleEnergy = 9.693*eV; //(128nm for Ar) 
+	G4double particleEnergy = 2.954*eV;  //(420nm for Ar)
 	//~ G4double particleEnergy = 6.965*eV; //(178nm for Xe) 
 	generic_messenger -> DeclareProperty("particleEnergy", particleEnergy,"Energy of the generated particle");
 
@@ -408,7 +408,8 @@ const std::string filename_event_2 = "nan.txt";
     //~ run_manager -> SetUserInitialization(physics_list);
     
     //G4ParticleTable needs to be call after G4VUserPhysicsList is instantiated and assigned to G4RunManager
-	auto opticalphoton = [&fixed_x, &fixed_y, &fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, random_generator_inside_S2({}, {}, {}), generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
+	auto opticalphoton = [&fixed_x, &fixed_y, &fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, random_generator_inside_S2({},{},{}), generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
+	auto particle_test_2 = [&fixed_x, &fixed_y, &fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, {0.,0.,0.}, generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
 	//~ auto particle_test = [&particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event,{0.,0, 10*cm}, generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
 	auto particle_test = [&particleDefinition, &particleWavelenght, &fixed_z](auto event){generate_particles_in_event(event,{0.,0.,10.*cm}, generate_partilces_and_energies_tuples(particleDefinition, c4::hc/(particleWavelenght*1e-6)));};   	
 		//auto opticalphoton_test = [&fixed_z, &particleDefinition, &particleEnergy](auto event){generate_particles_in_event(event, {0., 0., fixed_z}, generate_partilces_and_energies_tuples(particleDefinition, particleEnergy));};   	
@@ -445,7 +446,7 @@ const std::string filename_event_2 = "nan.txt";
 		.macro_path("macs")
 		.physics(physics_list)
         .geometry(GeometryV2)
-        .actions(particle_test)
+        .actions(opticalphoton)
         .run();
 
 }

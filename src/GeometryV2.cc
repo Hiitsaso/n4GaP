@@ -29,6 +29,8 @@
 //~ #include <iostream>
 //~ #include <typeinfo>
 
+#include <algorithm>
+
 using vecd = std::vector<G4double>;
 
 const auto world_size = 0.6*m;
@@ -134,8 +136,8 @@ field_cage_parameters version2_parameters() {
   fcp.teflon_cage_thickn = 5.      *mm;
   fcp.teflon_cage_length = 87.     *mm;
   
-  fcp.TPB_tefloncage_length = fcp.teflon_cage_length - (fcp.ring_length - fcp.cathBracket_length);
   fcp.TPB_tefloncage_thickn = 3 *mm;
+  fcp.TPB_tefloncage_length = fcp.teflon_cage_length - (fcp.ring_length - fcp.cathBracket_length) - fcp.TPB_tefloncage_thickn;
   fcp.TPB_tefloncage_rad    = fcp.teflon_cage_rad;
   
   fcp.encapsulation_rad    = 38./2  *mm;
@@ -179,12 +181,15 @@ field_cage_parameters version2_parameters() {
   fcp.gate_z         = fcp.gateBracket_z - fcp.meshBracket_length/2 - fcp.mesh_thickn/2;
   fcp.cathBracket_z = fcp.gateBracket_z + fcp.meshBracket_length/2 + fcp.drift_length + fcp.cathBracket_length/2;
   
-  fcp.teflon_cage_z    = fcp.gateBracket_z  +  fcp.meshBracket_length/2 + fcp.teflon_cage_length/2; 
-  fcp.TPB_tefloncage_z = fcp.teflon_cage_z  - (fcp.ring_length - fcp.cathBracket_length)/2;
-  fcp.long_ring_z      = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2; 
-  fcp.teflon_ring_z    = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2 - fcp.ring_length/4; 
-  fcp.cath_ring_z   = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2 + fcp.ring_length/4; 
-  fcp.ring0_z          = fcp.long_ring_z    + fcp.rings_length/2  -  fcp.ring_bottom_to_ring0_bottom - fcp.ring0_length/2; 
+  fcp.teflon_cage_z      = fcp.gateBracket_z +  fcp.meshBracket_length/2 + fcp.teflon_cage_length/2; 
+  fcp.TPB_tefloncage_z   = fcp.teflon_cage_z - (fcp.ring_length - fcp.cathBracket_length)/2 - fcp.TPB_tefloncage_thickn/2;
+  fcp.long_ring_z        = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2; 
+  fcp.teflon_ring_z      = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2 - fcp.ring_length/4; 
+  fcp.cath_ring_z        = fcp.cathBracket_z - (fcp.ring_length - fcp.cathBracket_length)/2 + fcp.ring_length/4; 
+  fcp.ring0_z            = fcp.long_ring_z   + fcp.rings_length/2  -  fcp.ring_bottom_to_ring0_bottom - fcp.ring0_length/2;
+  fcp.cath_ring0_z       = fcp.ring0_z + fcp.ring0_length/4;
+  fcp.teflon_ring0_z     = fcp.ring0_z -+ fcp.ring0_length/4;
+  fcp.TPB_teflon_rings_z = fcp.teflon_ring_z -  fcp.ring_length/4 - fcp.TPB_tefloncage_thickn/2;
   
   //~ fcp.pmt_z             = - (12.*mm + fcp.meshBracket_length/2 + fcp.pmt_length/2) + fcp.anodeBracket_z; //old position of the PMTs
   fcp.pmt_z                 = - (2.*mm + fcp.meshBracket_length/2 + fcp.pmt_length/2) + fcp.anodeBracket_z;  //new position of the PMTs (2mm from the cath)
@@ -237,23 +242,40 @@ G4LogicalVolume* get_world(field_cage_parameters const & fcp) {
   return world;
 }
 
-void TEFLON_place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4String name){
+void TEFLON_place_optical_surface_between(G4PVPlacement* one, G4PVPlacement* two, G4String name, G4double ref){
     static G4OpticalSurface* optical_surface = nullptr;
     if (! optical_surface) {
         optical_surface = new G4OpticalSurface(name);
         // Values from same paper as above ("Optimization of Parameters...")
         // "groundfrontpainted" (I think) only considers whether the photon is reflected or absorbed, so there will be no shine through visible in the simulation
         // According to the docs, for UNIFIED, dielectric_dielectric surfaces only the Lambertian reflection is turned on
-        optical_surface -> SetType(dielectric_dielectric);
+        optical_surface -> SetType(dielectric_metal);
         optical_surface -> SetModel(unified);
         optical_surface -> SetFinish(polished);
         optical_surface -> SetSigmaAlpha(0.0);
-
-        vecd pp = n4::scale_by( eV, {8.8560, 8.2656, 7.7490, 7.2932, 6.8880, 5.6356, 5.1660, 4.7686, 4.4280, 4.1328, 3.5424, 3.0996, 2.4797});
-        vecd R  =                   {0.05, 0.05, 0.15, 0.30, 0.60, .88, .90, .93, .95, .98, .98, .98, .98};
+        
+        //~ vecd pp = n4::scale_by( eV, {8.8560, 8.2656, 7.7490, 7.2932, 6.8880, 5.6356, 5.1660, 4.7686, 4.4280, 4.1328, 3.5424, 3.0996, 2.4797});
+        //~ vecd R  =                   {0.05, 0.05, 0.15, 0.30, 0.60, .88, .90, .93, .95, .98, .98, .98, .98};
+        //~ std::reverse(pp.begin(), pp.end());
+        //~ std::reverse(R.begin(), R.end());
+        //~ std::vector<double> specularlobe(13, 0.);
+        //~ std::vector<double> specularspike(13, 0.);
+        //~ std::vector<double> backscatter(13, 0.);
+        
+        vecd pp = n4::scale_by( eV, {11., 6.5, 3.0996, 1.77}); //3.0996 - 1.77 is the visible spectrum
+        vecd R  =                   { 0.,  0.,    ref,  ref};
+        std::reverse(pp.begin(), pp.end());
+        std::reverse(R.begin(), R.end());
+        std::vector<double> specularlobe(4, 0.);
+        std::vector<double> specularspike(4, 0.);
+        std::vector<double> backscatter(4, 0.);
+	
         optical_surface -> SetMaterialPropertiesTable(
             n4::material_properties{}
             .add("REFLECTIVITY", pp, R)
+            .add("SPECULARLOBECONSTANT", pp, specularlobe)
+			.add("SPECULARSPIKECONSTANT",pp, specularspike)
+			.add("BACKSCATTERCONSTANT",  pp, backscatter)
             .done());
     }
     new G4LogicalBorderSurface(name, one, two, optical_surface);
@@ -319,7 +341,7 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placemen
   //Build PMT and PMTplateBottom1
   auto solid_pmt = n4::tubs("solid_PMT").r(fcp.pmt_rad).z(fcp.pmt_length).solid(); //Hamamatsu pmt length: 43*mm | STEP pmt gap length: 57.5*mm
   G4LogicalVolume* logic_pmt = new G4LogicalVolume(solid_pmt, aluminum, "PMT");
-  
+
   // Position pairs (x,Y) for PMTs
   std::vector <float> pmt_PsX={-15.573,  20.68 , -36.253, 0, 36.253, -20.68 , 15.573};
   std::vector <float> pmt_PsY={-32.871, -29.922,  -2.949, 0,  2.949,  29.922, 32.871};
@@ -339,6 +361,8 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placemen
     all_pos_pmt.push_back(temp_vector);   
     
     if (detector == "PMT"){
+	  auto sensitive_detector = new n4::sensitive_detector("PMTsDetector", process_hits);
+      logic_pmt -> SetSensitiveDetector(sensitive_detector);
       G4PVPlacement* PMTs = n4::place(logic_pmt).in(vessel).at(pos_pmt).copy_no(i).check_overlaps().now();
       //TPB on top of the PMTs
       if (TPBon == true){
@@ -346,8 +370,8 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placemen
 	    auto TPB_in_PMTs = n4::tubs("TPBinPMTs").r(fcp.TPB_PMTs_rad).z(fcp.TPB_PMTs_length).volume(tpb);
 	    auto TPB_in_PMTs_placement = n4::place(TPB_in_PMTs).in(vessel).at(pos_tpb).copy_no(i).check_overlaps().now();
 	    
-        TPB_place_optical_surface_between(TPB_in_PMTs_placement, vessel_placement, "OpticalSurfaceTPBtoVessel");
-        TPB_place_optical_surface_between(TPB_in_PMTs_placement, PMTs, "OpticalSurfaceTPBtoPMTs");
+        //~ TPB_place_optical_surface_between(TPB_in_PMTs_placement, vessel_placement, "OpticalSurfaceTPBtoVessel");
+        //~ TPB_place_optical_surface_between(TPB_in_PMTs_placement, PMTs, "OpticalSurfaceTPBtoPMTs");
 	  }
     }		
   }
@@ -364,74 +388,51 @@ void place_pmt_holder_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placemen
   .name("PMTplateBottom1").place(steel).in(vessel).at_z(fcp.PMTplateBottom1_pos_z).check_overlaps().now();
   
   if (detector == "SiPM"){   
-    G4int N = fcp.SiPM_number;
-    auto max = 0.;
+    //~ G4int N = fcp.SiPM_number;
+    //~ auto max = 0.;
   
-    //~ if (N%2 == 0){ 
-	 
-	  //~ N = fcp.SiPM_number - 1;  //par
-	  //~ G4int lim = (2*fcp.SiPM_number - 5)/4;
-  
-      //~ for (G4int i = -lim/2; i < lim/2 + 1; ++i) {
-		//~ G4double posX = (fcp.SiPMs_cage_long + fcp.SiPM_between_long)*fcp.SiPM_number/2;  //fijo
-		//~ G4double posY = fcp.SiPMs_cage_short*i + fcp.SiPM_between_short*i;
-		//~ G4ThreeVector pos  = {posX, posY, fcp.SiPMs_z};
-		//~ G4ThreeVector pos_ = {-posX, posY, fcp.SiPMs_z};
-	    //~ n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
-	    //~ n4::place(logic_4SiPM).in(vessel).at(pos_).check_overlaps().now();
-	  //~ }
-      //~ for (G4int j = -lim/2; j < lim/2 + 1; ++j) {
-		//~ G4double posY = (fcp.SiPMs_cage_short + fcp.SiPM_between_short)*fcp.SiPM_number/2;  //fijo
-		//~ G4double posX =  fcp.SiPMs_cage_long*j + fcp.SiPM_between_long*j;
-		//~ G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
-		//~ G4ThreeVector pos_ = {posX, -posY, fcp.SiPMs_z};
-	    //~ n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
-	    //~ n4::place(logic_4SiPM).in(vessel).at(pos_).check_overlaps().now();
-	  //~ }
-    //~ }  
+    //~ G4LogicalVolume* logic_4SiPM = n4::box("4SiPM").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).volume(plastic);
+	//~ G4Box* solid_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn).solid();
+    //~ G4LogicalVolume* logic_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn)
+									  //~ .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
+									  //~ .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between),                                        0., 0.}) 
+									  //~ .add(solid_4SiPM_ef).at({                                       0., -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
+									  //~ .volume(silicon);
+	//~ auto sensitive_detector = new n4::sensitive_detector("4Detector", process_hits);
+    //~ logic_4SiPM_ef -> SetSensitiveDetector(sensitive_detector); 
     
-    G4LogicalVolume* logic_4SiPM = n4::box("4SiPM").x(fcp.SiPMs_cage_long).y(fcp.SiPMs_cage_short).z(fcp.SiPMs_thickn).volume(plastic);
-	G4Box* solid_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn).solid();
-    G4LogicalVolume* logic_4SiPM_ef = n4::box("4SiPMef").x(fcp.SiPMs_ef_xy).y(fcp.SiPMs_ef_xy).z(fcp.SiPMs_thickn)
-									  .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
-									  .add(solid_4SiPM_ef).at({-(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between),                                        0., 0.}) 
-									  .add(solid_4SiPM_ef).at({                                       0., -(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between), 0.}) 
-									  .volume(silicon);
-	auto sensitive_detector = new n4::sensitive_detector("4Detector", process_hits);
-    logic_4SiPM_ef -> SetSensitiveDetector(sensitive_detector); 
-    
-    for (G4int i = -N/2; i < N/2 + 1; ++i) {
-      for (G4int j = -N/2; j < N/2 + 1; ++j) {
-		if (i != 0 and j!=0){
-			auto i_new = 0.;
-			auto j_new = 0.;
-			if (i>=0 and j>=0){
-				i_new = i - 0.5;
-				j_new = j - 0.5;
-			}else if (i<=0 and j>=0){
-				i_new = i + 0.5;
-				j_new = j - 0.5;				
-			}else if (i<=0 and j<=0){
-				i_new = i + 0.5;
-				j_new = j + 0.5;
-			}else{
-				i_new = i - 0.5;
-				j_new = j + 0.5;
-			}
-			G4double posX = fcp.SiPMs_cage_long*i_new + fcp.SiPM_between_long*i_new;
-			G4double posY = fcp.SiPMs_cage_short*j_new + fcp.SiPM_between_short*j_new;
-			G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
-			n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
-			n4::place(logic_4SiPM_ef).in(logic_4SiPM).at({(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, (fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, 0.}).check_overlaps().now();
+    //~ for (G4int i = -N/2; i < N/2 + 1; ++i) {
+      //~ for (G4int j = -N/2; j < N/2 + 1; ++j) {
+		//~ if (i != 0 and j!=0){
+			//~ auto i_new = 0.;
+			//~ auto j_new = 0.;
+			//~ if (i>=0 and j>=0){
+				//~ i_new = i - 0.5;
+				//~ j_new = j - 0.5;
+			//~ }else if (i<=0 and j>=0){
+				//~ i_new = i + 0.5;
+				//~ j_new = j - 0.5;				
+			//~ }else if (i<=0 and j<=0){
+				//~ i_new = i + 0.5;
+				//~ j_new = j + 0.5;
+			//~ }else{
+				//~ i_new = i - 0.5;
+				//~ j_new = j + 0.5;
+			//~ }
+			//~ G4double posX = fcp.SiPMs_cage_long*i_new + fcp.SiPM_between_long*i_new;
+			//~ G4double posY = fcp.SiPMs_cage_short*j_new + fcp.SiPM_between_short*j_new;
+			//~ G4ThreeVector pos = {posX, posY, fcp.SiPMs_z};
+			//~ n4::place(logic_4SiPM).in(vessel).at(pos).check_overlaps().now();
+			//~ n4::place(logic_4SiPM_ef).in(logic_4SiPM).at({(fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, (fcp.SiPMs_ef_xy + fcp.SiPMs_ef_between)/2, 0.}).check_overlaps().now();
 
-		}
-      }
-   } 
+		//~ }
+      //~ }
+   //~ } 
    
-    //~ G4LogicalVolume* logic_OneSiPM = n4::box("OneSiPM").xy(2*fcp.mesh_rad).z(fcp.SiPMs_thickn).volume(silicon);
-    //~ auto sensitive_detector = new n4::sensitive_detector("OneDetector", process_hits);
-    //~ logic_OneSiPM -> SetSensitiveDetector(sensitive_detector);
-    //~ n4::place(logic_OneSiPM).in(vessel).at_z(fcp.SiPMs_z).check_overlaps().now();
+    G4LogicalVolume* logic_OneSiPM = n4::box("OneSiPM").xy(2*fcp.mesh_rad).z(fcp.SiPMs_thickn).volume(silicon);
+    auto sensitive_detector = new n4::sensitive_detector("OneDetector", process_hits);
+    logic_OneSiPM -> SetSensitiveDetector(sensitive_detector);
+    n4::place(logic_OneSiPM).in(vessel).at_z(fcp.SiPMs_z).check_overlaps().now();
     
   }
 }
@@ -443,11 +444,11 @@ void place_cage_in(G4LogicalVolume* vessel, field_cage_parameters const & fcp) {
   //Anode mesh 
   n4::tubs("Anode").r(fcp.mesh_rad).z(fcp.mesh_thickn).place(mesh_mat).in(vessel).at_z(fcp.anode_z).check_overlaps().now();
 
-  //"Cath" rings (only half of the rings plus the one inside)
-  n4::tubs("CathRing0").r(      fcp.ring1_rad).z(fcp.ring0_length).place(steel).in(vessel).at_z(fcp.ring0_z).check_overlaps().now();
-  n4::tubs("CathRing1").r_inner(fcp.ring1_rad).r_delta(fcp.ring1_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z(fcp.cath_ring_z).check_overlaps().now();
-  n4::tubs("CathRing2").r_inner(fcp.ring2_rad).r_delta(fcp.ring2_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z(fcp.cath_ring_z).check_overlaps().now();
-  n4::tubs("CathRing3").r_inner(fcp.ring3_rad).r_delta(fcp.ring3_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z(fcp.cath_ring_z).check_overlaps().now();
+  //"Cath" rings (only half of the rings)
+  n4::tubs("CathRing0").r(      fcp.ring1_rad).z(                         fcp.ring0_length/2).place(steel).in(vessel).at_z(fcp.cath_ring0_z).check_overlaps().now();
+  n4::tubs("CathRing1").r_inner(fcp.ring1_rad).r_delta(fcp.ring1_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z( fcp.cath_ring_z).check_overlaps().now();
+  n4::tubs("CathRing2").r_inner(fcp.ring2_rad).r_delta(fcp.ring2_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z( fcp.cath_ring_z).check_overlaps().now();
+  n4::tubs("CathRing3").r_inner(fcp.ring3_rad).r_delta(fcp.ring3_thickn).z(fcp.ring_length/2).place(steel).in(vessel).at_z( fcp.cath_ring_z).check_overlaps().now();
   
   //Gate bracket
   n4::tubs("GateBracket").r_inner(fcp.gateBracket_rad).r_delta(fcp.gateBracket_thickn).z(fcp.meshBracket_length).place(steel).in(vessel).at_z(fcp.gateBracket_z).check_overlaps().now();
@@ -459,24 +460,30 @@ void place_cage_in(G4LogicalVolume* vessel, field_cage_parameters const & fcp) {
   n4::tubs("CathBracket").r_inner(fcp.cathBracket_rad).r_delta(fcp.cathBracket_thickn).z(fcp.cathBracket_length).place(steel).in(vessel).at_z(fcp.cathBracket_z).check_overlaps().now();
 }
 
-void place_teflon_cage_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placement, field_cage_parameters const & fcp, bool TPBon, bool OpticalSurfaceON) { 
+void place_teflon_cage_in(G4LogicalVolume* vessel, G4PVPlacement* vessel_placement, field_cage_parameters const & fcp, bool TPBon, bool OpticalSurfaceON, G4double ref) { 	
   //Teflon cage
   G4PVPlacement* TeflonCage = n4::tubs("TeflonCage").r_inner(fcp.teflon_cage_rad).r_delta(fcp.teflon_cage_thickn).z(fcp.teflon_cage_length).place(teflon).in(vessel).at_z(fcp.teflon_cage_z).check_overlaps().now();  
   //Teflon rings (only half of the rings)
-  G4PVPlacement* Teflon_ring_1 = n4::tubs("TeflonRing1").r_inner(fcp.ring1_rad).r_delta(fcp.ring1_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z(fcp.teflon_ring_z).check_overlaps().now();
-  G4PVPlacement* Teflon_ring_2 = n4::tubs("TeflonRing2").r_inner(fcp.ring2_rad).r_delta(fcp.ring2_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z(fcp.teflon_ring_z).check_overlaps().now();
-  G4PVPlacement* Teflon_ring_3 = n4::tubs("TeflonRing3").r_inner(fcp.ring3_rad).r_delta(fcp.ring3_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z(fcp.teflon_ring_z).check_overlaps().now();
+  G4PVPlacement* Teflon_ring_0 = n4::tubs("TeflonRing0").r(      fcp.ring1_rad).z(                         fcp.ring0_length/2).place(teflon).in(vessel).at_z(fcp.teflon_ring0_z).check_overlaps().now();
+  G4PVPlacement* Teflon_ring_1 = n4::tubs("TeflonRing1").r_inner(fcp.ring1_rad).r_delta(fcp.ring1_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z( fcp.teflon_ring_z).check_overlaps().now();
+  G4PVPlacement* Teflon_ring_2 = n4::tubs("TeflonRing2").r_inner(fcp.ring2_rad).r_delta(fcp.ring2_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z( fcp.teflon_ring_z).check_overlaps().now();
+  G4PVPlacement* Teflon_ring_3 = n4::tubs("TeflonRing3").r_inner(fcp.ring3_rad).r_delta(fcp.ring3_thickn).z(fcp.ring_length/2).place(teflon).in(vessel).at_z( fcp.teflon_ring_z).check_overlaps().now();
   
   //TPB inside of the teflon cage
   if (TPBon == true){
-    G4PVPlacement* TPB_in_TeflonCage = n4::tubs("TPBinTefloncage").r(fcp.TPB_tefloncage_rad).r_delta(fcp.TPB_tefloncage_thickn).z(fcp.TPB_tefloncage_length).place(tpb).in(vessel).at_z(fcp.TPB_tefloncage_z).check_overlaps().now();    
+    G4PVPlacement* TPB_in_TeflonCage    = n4::tubs( "TPBinTefloncage").r(fcp.TPB_tefloncage_rad).r_delta(fcp.TPB_tefloncage_thickn).z(fcp.TPB_tefloncage_length).place(tpb).in(vessel).at_z(  fcp.TPB_tefloncage_z).check_overlaps().now();    
+    G4PVPlacement* TPB_in_Teflon_ring_1 = n4::tubs("TPBinTeflonRing1").r_inner(   fcp.ring1_rad).r_delta(         fcp.ring1_thickn).z(fcp.TPB_tefloncage_thickn).place(tpb).in(vessel).at_z(fcp.TPB_teflon_rings_z).check_overlaps().now();    
+    G4PVPlacement* TPB_in_Teflon_ring_2 = n4::tubs("TPBinTeflonRing2").r_inner(   fcp.ring2_rad).r_delta(         fcp.ring2_thickn).z(fcp.TPB_tefloncage_thickn).place(tpb).in(vessel).at_z(fcp.TPB_teflon_rings_z).check_overlaps().now();    
+    G4PVPlacement* TPB_in_Teflon_ring_3 = n4::tubs("TPBinTeflonRing3").r_inner(   fcp.ring3_rad).r_delta(         fcp.ring3_thickn).z(fcp.TPB_tefloncage_thickn).place(tpb).in(vessel).at_z(fcp.TPB_teflon_rings_z).check_overlaps().now();    
+	 
 	  if (OpticalSurfaceON == true){
-        TEFLON_place_optical_surface_between(TPB_in_TeflonCage,    TeflonCage, "OpticalSurfaceTPBToTeflonCage");
-        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_1, "OpticalSurfaceVesselToTeflonRing1");
-        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_2, "OpticalSurfaceVesselToTeflonRing2");
-        TEFLON_place_optical_surface_between( vessel_placement, Teflon_ring_3, "OpticalSurfaceVesselToTeflonRing3");
+        TEFLON_place_optical_surface_between(   TPB_in_TeflonCage,    TeflonCage,     "OpticalSurfaceTPBToTeflonCage",  ref);
+        TEFLON_place_optical_surface_between(vessel_placement,     Teflon_ring_0, "OpticalSurfaceVesselToTeflonRing0", ref);
+        TEFLON_place_optical_surface_between(TPB_in_Teflon_ring_1, Teflon_ring_1,    "OpticalSurfaceTPBToTeflonRing1", ref);
+        TEFLON_place_optical_surface_between(TPB_in_Teflon_ring_2, Teflon_ring_2,    "OpticalSurfaceTPBToTeflonRing2", ref);
+        TEFLON_place_optical_surface_between(TPB_in_Teflon_ring_3, Teflon_ring_3,    "OpticalSurfaceTPBToTeflonRing3", ref);
         
-        TPB_place_optical_surface_between(TPB_in_TeflonCage,    vessel_placement, "OpticalSurfaceTPBToVessel");
+ 
       }
   //~ } else if (TPBon == false && OpticalSurfaceON == true){
 	  //~ TEFLON_place_optical_surface_between(vessel_placement,    TeflonCage, "OpticalSurfaceVesseltoTeflonCage");	  
@@ -538,12 +545,12 @@ G4PVPlacement* GeometryV2() {
   
   //bool1 = TPBon ; bool2 = OpticalSurfaceON
   place_pmt_holder_in(vessel, vessel_placement, fcp, true, "SiPM"); //SiPM or PMT
-  //~ place_cage_in(vessel, fcp);
-  //~ place_teflon_cage_in(vessel, vessel_placement, fcp, true, true);
-  //~ place_rings_in(vessel, fcp);
-  //place_encapsulation_in(vessel, fcp);
+  place_cage_in(vessel, fcp);
+  place_teflon_cage_in(vessel, vessel_placement, fcp, true, true, 0.98);
+  place_rings_in(vessel, fcp);
+  //~ place_encapsulation_in(vessel, fcp);
   //~ place_S1_and_S2_in(vessel, fcp);
-  //place_Pb_box_in(vessel, fcp);
+  //~ place_Pb_box_in(vessel, fcp);
   
   return n4::place(world).now();
 }
@@ -563,15 +570,18 @@ G4PVPlacement* GeometryV2_TEST() {
   
   //Teflón análisis
   //TPB análisis
-  auto worldbox = n4::box("Box").xy(world_size).z(world_size).place(gas).in(world).at_z(0.).check_overlaps().now();
-  auto box2     = n4::box("Box2").xy(world_size).z(3. *micrometer).volume(teflon);
-  auto box3     = n4::box("Box2").xy(world_size).z(world_size/4).volume(steel);
-  //~ auto box2     = n4::box("Box2").xy(world_size).z(3. *mm).volume(tpb);
-  auto box2_plc = n4::place(box2).in(worldbox).at_z(0.).check_overlaps().now();
-  auto box3_plc = n4::place(box3).in(worldbox).at_z(-world_size/8).check_overlaps().now();
-  //~ place_skin_optical_surface_between(box2, "opticalskintest");
-  TEFLON_place_optical_surface_between(worldbox, box2_plc, "opticalsurfacetest1");
-  //~ place_optical_surface_between(box2_plc, worldbox, "opticalsurfacetest2");
+  auto worldbox = n4::box("world").xy(world_size).z(world_size).place(gas).in(world).at_z(0.).check_overlaps().now();
+  
+  auto tpb_pos    = 2. *mm;
+  auto teflon_pos = tpb_pos + 3.*mm/2 + 5.*mm/2;
+  
+  auto teflonbox     = n4::box("teflon").xy(world_size).z(5.*mm).place(teflon).in(worldbox).at_z(2.*mm + 5*mm/2 + 3.*mm/2).check_overlaps().now();
+  TEFLON_place_optical_surface_between(worldbox, teflonbox, "OpticalSurfaceWorldTeflon", 0.98);
+  
+  //~ auto teflonbox     = n4::box("teflon").xy(world_size).z(5.*mm).place(teflon).in(worldbox).at_z(2.*mm + 5*mm/2 + 3.*mm/2).check_overlaps().now();
+  //~ auto tpbbox        = n4::box(   "tpb").xy(world_size).z(3.*mm).place(   tpb).in(worldbox).at_z(2.*mm).check_overlaps().now();
+  //~ TEFLON_place_optical_surface_between(worldbox, teflonbox, "OpticalSurfaceWorldTeflon");
+  //~ TEFLON_place_optical_surface_between(worldbox,    tpbbox,    "OpticalSurfaceWorldTPB");
   
   return n4::place(world).now();
 }
