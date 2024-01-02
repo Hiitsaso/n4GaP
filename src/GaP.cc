@@ -396,8 +396,8 @@ const std::string filename_event_2 = "nan.txt";
 	generic_messenger -> DeclareProperty("particleDefinition", particleDefinition,"Type of the generated particle");
 	G4double particleWavelenght = 128 *nm *1e6;
 	generic_messenger -> DeclareProperty("particleWavelenght", particleWavelenght,"Wavelength of the generated particle, it will be used to calculate the particle's energy with ");
-	//~ G4double particleEnergy = 9.693*eV; //(128nm for Ar) 
-	G4double particleEnergy = 2.954*eV;  //(420nm for Ar)
+	G4double particleEnergy = 9.693*eV; //(128nm for Ar) 
+	//~ G4double particleEnergy = 2.954*eV;  //(420nm for Ar)
 	//~ G4double particleEnergy = 6.965*eV; //(178nm for Xe) 
 	generic_messenger -> DeclareProperty("particleEnergy", particleEnergy,"Energy of the generated particle");
 
